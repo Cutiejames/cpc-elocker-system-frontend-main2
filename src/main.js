@@ -16,4 +16,3 @@ const app = createApp(App)
 setupAxiosInterceptors(router)
 
 app.use(store).use(router).mount('#app')
-

@@ -1,15 +1,16 @@
 import { createRouter, createWebHistory } from "vue-router";
-import 'bootstrap-icons/font/bootstrap-icons.css';
+import "bootstrap/dist/js/bootstrap.bundle.min.js";
 
 // ✅ User components
 import DashboardPage from "../layouts/DashboardPage.vue";
-import CreateAccount from '../views/CreateAccount.vue';
+import CreateAccount from "../views/CreateAccount.vue";
 import LoginPage from "../views/LoginPage.vue";
 import SettingProfile from "../views/SettingProfile.vue";
 import SupportPage from "../views/SupportPage.vue";
 import RentalStatus from "../views/RentalStatus.vue";
 import ClientLocker from "../views/ClientLocker.vue";
 import ClientRentForm from "../views/ClientRentForm.vue";
+import QrProcessPage from "../views/QrProcessPage.vue"; // ✅ Added
 
 // ✅ Admin components
 import TestDashboard from "../layouts/TestDashboard.vue";
@@ -53,6 +54,19 @@ const routes = [
     ],
   },
 
+  // ✅ QR Process Page (for payments)
+  {
+    path: "/qr-process/:locker_id",
+    name: "QrProcessPage",
+    component: QrProcessPage,
+    meta: { requiresAuth: true, role: "client" },
+    props: (route) => ({
+      locker_id: route.params.locker_id,
+      months: route.query.months,
+      paid: route.query.paid,
+    }),
+  },
+
   // ✅ Admin dashboard layout
   {
     path: "/TestDashboard",
@@ -77,7 +91,6 @@ const routes = [
           status: route.query.status,
         }),
       },
-      // ✅ Added ProgramStudents route
       {
         path: "program-students/:id",
         name: "ProgramStudents",
@@ -112,31 +125,28 @@ const router = createRouter({
   routes,
 });
 
-// ✅ Auth Guard
+// 🚫 AUTH GUARD (Commented Out)
 // router.beforeEach((to, from, next) => {
 //   const token = localStorage.getItem("authToken");
-//   const userRole = localStorage.getItem("userRole")?.toLowerCase(); // normalize case
+//   const userRole = localStorage.getItem("userRole")?.toLowerCase();
 
-//   // if route requires login but user has no token
+//   // 🔒 Require login
 //   if (to.meta.requiresAuth && !token) {
 //     return next({ name: "Login" });
 //   }
 
-//   // if logged in but wrong role for route
+//   // 🚫 Wrong role access
 //   if (to.meta.role && to.meta.role.toLowerCase() !== userRole) {
 //     return next({ name: "Login" });
 //   }
 
-//   // if already logged in and tries to visit login or create-account
+//   // 🔁 Prevent logged-in users from visiting login or register
 //   if ((to.name === "Login" || to.name === "CreateAccount") && token) {
-//     if (userRole === "admin") {
-//       return next("/TestDashboard/admin-dashboard");
-//     } else if (userRole === "student" || userRole === "client") {
-//       return next("/dashboard/user-locker");
-//     }
+//     if (userRole === "admin") return next("/TestDashboard/admin-dashboard");
+//     if (userRole === "client" || userRole === "student") return next("/dashboard/user-locker");
 //   }
 
-//   return next();
+//   next();
 // });
 
 export default router;

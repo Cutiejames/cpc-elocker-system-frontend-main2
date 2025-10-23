@@ -2,23 +2,34 @@
   <div class="container py-4">
     <h2 class="text-center fw-bold mb-4">ADMIN DASHBOARD</h2>
 
-    <!-- Date Filter -->
-    <div class="d-flex flex-wrap gap-3 mb-4">
-      <div class="input-group" style="width: 300px">
-        <span class="input-group-text">Start</span>
+    <!-- 📅 Date Filter Section -->
+    <div
+      class="filter-container d-flex flex-wrap align-items-center justify-content-start gap-3 mb-4"
+    >
+      <!-- Start Date -->
+      <div class="input-group date-input">
+        <span class="input-group-text fw-semibold bg-light text-secondary">Start</span>
         <input type="date" v-model="startDate" class="form-control" />
       </div>
-      <div class="input-group" style="width: 300px">
-        <span class="input-group-text">End</span>
+
+      <!-- End Date -->
+      <div class="input-group date-input">
+        <span class="input-group-text fw-semibold bg-light text-secondary">End</span>
         <input type="date" v-model="endDate" class="form-control" />
       </div>
-      <button class="btn btn-primary" @click="fetchAll">Apply</button>
-      <button class="btn btn-danger" @click="downloadReport">Download PDF</button>
+
+      <!-- Buttons -->
+      <div class="d-flex flex-wrap gap-2 justify-content-center">
+        <button class="btn btn-primary px-4 fw-semibold" @click="fetchAll">Apply</button>
+        <button class="btn btn-danger px-4 fw-semibold" @click="downloadReport">
+          Download PDF
+        </button>
+      </div>
     </div>
 
-    <!-- Top Summary Cards -->
+    <!-- 🧮 Top Summary Cards -->
     <div class="row g-4 mb-4">
-      <div class="col-md-3" v-for="(item, key) in summary" :key="key">
+      <div class="col-md-3 col-sm-6" v-for="(item, key) in summary" :key="key">
         <div class="card text-center shadow-sm">
           <div class="card-body">
             <h6 class="card-title text-uppercase">{{ key.replace('_', ' ') }}</h6>
@@ -42,7 +53,7 @@
       </div>
     </div>
 
-    <!-- Charts Section -->
+    <!-- 📊 Charts Section -->
     <div class="row g-4">
       <div class="col-md-6">
         <div class="card shadow-sm">
@@ -84,40 +95,40 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue"
-import axios from "axios"
-import Chart from "chart.js/auto"
+import { ref, onMounted } from "vue";
+import axios from "axios";
+import Chart from "chart.js/auto";
 
-const summary = ref({})
-const startDate = ref("2025-08-10")
-const endDate = ref("2025-09-10")
+const summary = ref({});
+const startDate = ref("2025-08-10");
+const endDate = ref("2025-09-10");
 
-let courseChart, tenantsChart, incomeChart, reservationChart
+let courseChart, tenantsChart, incomeChart, reservationChart;
 
-// Summary
+// 📈 Summary Data
 const fetchSummary = async () => {
   try {
     const res = await axios.get(
       `http://localhost:3001/dashboard/summary?start_date=${startDate.value}&end_date=${endDate.value}`
-    )
-    summary.value = res.data.summary || {}
+    );
+    summary.value = res.data.summary || {};
   } catch (err) {
-    console.error("Error fetching summary:", err)
+    console.error("Error fetching summary:", err);
   }
-}
+};
 
-// Rent by course
+// 📊 Rent by Course
 const fetchCourseStats = async () => {
   try {
     const res = await axios.get(
       `http://localhost:3001/dashboard/rent-by-course?start_date=${startDate.value}&end_date=${endDate.value}`
-    )
-    const raw = res.data.data || []
-    const labels = raw.map(i => i.course_name)
-    const rentValues = raw.map(i => Number(i.total_rent) || 0)
-    const reserveValues = raw.map(i => Number(i.total_reserve) || 0)
+    );
+    const raw = res.data.data || [];
+    const labels = raw.map(i => i.course_name);
+    const rentValues = raw.map(i => Number(i.total_rent) || 0);
+    const reserveValues = raw.map(i => Number(i.total_reserve) || 0);
 
-    if (courseChart) courseChart.destroy()
+    if (courseChart) courseChart.destroy();
     courseChart = new Chart(document.getElementById("courseChart"), {
       type: "bar",
       data: {
@@ -127,24 +138,24 @@ const fetchCourseStats = async () => {
           { label: "Reservations", data: reserveValues, backgroundColor: "rgba(255,99,132,0.6)" }
         ]
       }
-    })
+    });
   } catch (err) {
-    console.error("Error fetching rent by course:", err)
+    console.error("Error fetching rent by course:", err);
   }
-}
+};
 
-// Tenants
+// 👥 Tenants
 const fetchTenants = async () => {
   try {
     const res = await axios.get(
       `http://localhost:3001/dashboard/tenants?start_date=${startDate.value}&end_date=${endDate.value}`
-    )
-    const raw = res.data.data || []
-    const labels = raw.map(i => i.month)
-    const rentValues = raw.map(i => Number(i.rent_count) || 0)
-    const reserveValues = raw.map(i => Number(i.reserve_count) || 0)
+    );
+    const raw = res.data.data || [];
+    const labels = raw.map(i => i.month);
+    const rentValues = raw.map(i => Number(i.rent_count) || 0);
+    const reserveValues = raw.map(i => Number(i.reserve_count) || 0);
 
-    if (tenantsChart) tenantsChart.destroy()
+    if (tenantsChart) tenantsChart.destroy();
     tenantsChart = new Chart(document.getElementById("tenantsChart"), {
       type: "line",
       data: {
@@ -154,86 +165,86 @@ const fetchTenants = async () => {
           { label: "Reserved", data: reserveValues, borderColor: "blue", fill: false }
         ]
       }
-    })
+    });
   } catch (err) {
-    console.error("Error fetching tenants:", err)
+    console.error("Error fetching tenants:", err);
   }
-}
+};
 
-// Income
+// 💰 Income
 const fetchIncome = async () => {
   try {
     const res = await axios.get(
       `http://localhost:3001/dashboard/income?start_date=${startDate.value}&end_date=${endDate.value}`
-    )
-    const raw = res.data.data || []
-    const labels = raw.map(i => new Date(i.date).toLocaleDateString())
-    const values = raw.map(i => Number(i.daily_income) || 0)
+    );
+    const raw = res.data.data || [];
+    const labels = raw.map(i => new Date(i.date).toLocaleDateString());
+    const values = raw.map(i => Number(i.daily_income) || 0);
 
-    if (incomeChart) incomeChart.destroy()
+    if (incomeChart) incomeChart.destroy();
     incomeChart = new Chart(document.getElementById("incomeChart"), {
       type: "line",
       data: {
         labels,
         datasets: [{ label: "Daily Income", data: values, borderColor: "orange", fill: false }]
       }
-    })
+    });
   } catch (err) {
-    console.error("Error fetching income:", err)
+    console.error("Error fetching income:", err);
   }
-}
+};
 
-// Reservations
+// 📅 Reservations
 const fetchReservations = async () => {
   try {
     const res = await axios.get(
       `http://localhost:3001/dashboard/reservations?start_date=${startDate.value}&end_date=${endDate.value}`
-    )
-    const raw = res.data.data || []
-    const labels = raw.map(i => new Date(i.date).toLocaleDateString())
-    const values = raw.map(i => Number(i.total_reservations) || 0)
+    );
+    const raw = res.data.data || [];
+    const labels = raw.map(i => new Date(i.date).toLocaleDateString());
+    const values = raw.map(i => Number(i.total_reservations) || 0);
 
-    if (reservationChart) reservationChart.destroy()
+    if (reservationChart) reservationChart.destroy();
     reservationChart = new Chart(document.getElementById("reservationChart"), {
       type: "line",
       data: {
         labels,
         datasets: [{ label: "Reservations", data: values, borderColor: "purple", fill: false }]
       }
-    })
+    });
   } catch (err) {
-    console.error("Error fetching reservations:", err)
+    console.error("Error fetching reservations:", err);
   }
-}
+};
 
-// Download PDF
+// 🧾 Download Report PDF
 const downloadReport = async () => {
   try {
     const res = await axios.get(
       `http://localhost:3001/dashboard/report/pdf?start_date=${startDate.value}&end_date=${endDate.value}`,
       { responseType: "blob" }
-    )
-    const url = window.URL.createObjectURL(new Blob([res.data]))
-    const link = document.createElement("a")
-    link.href = url
-    link.setAttribute("download", "dashboard-report.pdf")
-    document.body.appendChild(link)
-    link.click()
+    );
+    const url = window.URL.createObjectURL(new Blob([res.data]));
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", "dashboard-report.pdf");
+    document.body.appendChild(link);
+    link.click();
   } catch (err) {
-    console.error("Error downloading report:", err)
+    console.error("Error downloading report:", err);
   }
-}
+};
 
-// Fetch all
+// 🔁 Fetch all data
 const fetchAll = () => {
-  fetchSummary()
-  fetchCourseStats()
-  fetchTenants()
-  fetchIncome()
-  fetchReservations()
-}
+  fetchSummary();
+  fetchCourseStats();
+  fetchTenants();
+  fetchIncome();
+  fetchReservations();
+};
 
-onMounted(fetchAll)
+onMounted(fetchAll);
 </script>
 
 <style scoped>
@@ -245,5 +256,30 @@ onMounted(fetchAll)
 }
 canvas {
   max-height: 400px;
+}
+
+/* 📅 Responsive Filter Section */
+.filter-container {
+  gap: 1rem;
+}
+
+.date-input {
+  width: 250px;
+}
+
+/* 📱 Stack inputs & buttons on smaller devices */
+@media (max-width: 768px) {
+  .filter-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .date-input {
+    width: 100%;
+  }
+
+  .filter-container .btn {
+    width: 100%;
+  }
 }
 </style>

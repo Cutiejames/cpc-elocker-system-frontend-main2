@@ -134,7 +134,7 @@
                 </div>
 
                 <!-- payment method -->
-                <div class="mb-3 mt-3">
+                <div class="mb-3 mt-3" v-if="form.action_type === 'rent'">
                   <label class="form-label">Payment Method:</label>
                   <select v-model="form.payment_method" class="form-select" required>
                     <option disabled value="">select</option>
@@ -191,6 +191,36 @@
       </div>
     </div>
 
+    <!-- confirmation modal -->
+<div
+  v-if="showConfirmModal"
+  class="modal fade show"
+  style="display: block; background: rgba(0,0,0,0.5);"
+  tabindex="-1"
+  @click.self="showConfirmModal = false"
+>
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content text-center p-4">
+      <h5 class="text-primary fw-bold mb-3">confirm rental</h5>
+      <p class="text-muted mb-4">
+        are you sure you want to rent locker
+        <strong>{{ selectedLocker?.locker_number }}</strong> for
+        <strong>{{ form.months }}</strong>
+        month<span v-if="form.months > 1">s</span>
+        via <strong>{{ form.payment_method.toUpperCase() }}</strong>?
+      </p>
+      <div class="d-flex justify-content-center">
+        <button class="btn btn-secondary me-3" @click="showConfirmModal = false">
+          cancel
+        </button>
+        <button class="btn btn-primary" @click="confirmCashRent">
+          yes, proceed
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
     <!-- Pagination -->
     <div v-if="sortedLockers.length" class="pagination-footer">
       <button
@@ -245,6 +275,7 @@ export default {
     return {
       lockers: [],
       selectedLocker: null,
+      showConfirmModal: false,
       currentPage: 1,
       lockerIcon,
       letters: ["A", "B", "C", "D"],
@@ -338,40 +369,54 @@ export default {
       this.form = { action_type: "", months: 1, paid_months: 0, payment_method: "" };
     },
     async submitLockerAction() {
-    // if qr already generated → redirect on second confirm
-    if (this.qrResult && this.form.payment_method === "qr") {
-  this.isLoading = true; // show loading overlay first
+      // check if rent + cash → show confirmation modal instead of alert
+      if (
+        this.form.action_type === "rent" &&
+        this.form.payment_method === "cash" &&
+        !this.qrResult
+      ) {
+        this.showConfirmModal = true;
+        return;
+      }
 
-  // small async pause to let vue update before redirect
-  await new Promise(resolve => setTimeout(resolve, 500));
+      // if qr already generated → redirect on second confirm
+      if (this.qrResult && this.form.payment_method === "qr") {
+        this.isLoading = true; // show loading overlay first
 
-  try {
-    // optional: confirm payment on backend first
-    await axios.post("http://localhost:3001/locker/payments", {
-      locker_id: this.selectedLocker?.locker_id || this.qrResult.locker_id,
-      payment_method: "qr",
-    }, { withCredentials: true });
+        // small async pause to let vue update before redirect
+        await new Promise(resolve => setTimeout(resolve, 500));
+      
+        try {
+          // optional: confirm payment on backend first
+          await axios.post("http://localhost:3001/locker/payments", {
+            locker_id: this.selectedLocker?.locker_id || this.qrResult.locker_id,
+            payment_method: "qr",
+          }, { withCredentials: true });
 
-    // success message
-    alert("payment confirmed successfully! redirecting...");
-  } catch (error) {
-    console.error("payment confirmation failed:", error);
-    alert("failed to confirm payment, please try again.");
-  } finally {
-    setTimeout(() => {
-      this.isLoading = false;
-      this.selectedLocker = null;
-      this.$router.push("/dashboard/user-rental"); // ✅ redirect after short delay
-    }, 1500);
-  }
+          // success message
+          alert("payment confirmed successfully! redirecting...");
+        } catch (error) {
+          console.error("payment confirmation failed:", error);
+          alert("failed to confirm payment, please try again.");
+        } finally {
+          setTimeout(() => {
+            this.isLoading = false;
+            this.selectedLocker = null;
+            this.$router.push("/dashboard/user-rental"); // ✅ redirect after short delay
+            }, 1500);
+          }
+          return;
+        }
+        
+        if (!this.form.action_type) {
+          alert("please choose an action (rent or reserve)");
+          return;
+        }
 
-  return;
-}
-    
-    if (!this.form.action_type || !this.form.payment_method) {
-      alert("please fill in all required fields");
-      return;
-    }
+        // auto-set payment method for reserve
+        if (this.form.action_type === "reserve") {
+          this.form.payment_method = "cash";
+        }
 
     try {
       const locker_id = this.selectedLocker.locker_id;
@@ -388,7 +433,7 @@ export default {
           action_type: "rent",
         };
       } else {
-        url = "http://localhost:3001/transaction";
+        url = "http://localhost:3001/locker/transaction";
         payload = {
           locker_id,
           payment_method: this.form.payment_method,
@@ -398,15 +443,31 @@ export default {
 
       const response = await axios.post(url, payload, { withCredentials: true });
 
+
       // if (response.data.qr_download) {
       //   this.qrResult = response.data;
       //   // alert("qr code generated! scan it and click confirm again to proceed.");
       //   return;
       // }
       if (response.data.qr_download) {
+        this.isLoading = true;
         const lockerId = this.selectedLocker.locker_id;
-        this.selectedLocker = null;
-        this.$router.push(`/qr-process/${lockerId}`);
+
+        // small delay for smoother UI feedback
+        setTimeout(() => {
+          this.selectedLocker = null;
+          this.isLoading = false;
+
+          // ✅ navigate to qr process page with query + qrData
+          this.$router.push({
+            path: `/qr-process/${lockerId}`,
+            query: {
+              months: this.form.months,
+              paid: this.form.paid_months,
+            },
+            state: { qrData: response.data },
+          });
+        }, 1200);
         return;
       }
 
@@ -459,7 +520,41 @@ export default {
         console.error("error downloading qr code:", error);
         alert("failed to download qr code. please try again.");
       }
-    }
+    },
+    async confirmCashRent() {
+      this.showConfirmModal = false;
+      this.isLoading = true;
+
+      try {
+        const locker_id = this.selectedLocker.locker_id;
+        const payload = {
+          locker_id,
+          months: this.form.months,
+          paid_months: this.form.paid_months,
+          payment_method: this.form.payment_method,
+          action_type: "rent",
+        };
+
+        const response = await axios.post(
+          "http://localhost:3001/locker/transaction",
+          payload,
+          { withCredentials: true }
+        );
+
+        const message = response.data.message || "rental successful!";
+        console.log(message);
+
+        setTimeout(() => {
+          this.isLoading = false;
+          this.selectedLocker = null;
+          this.$router.push("/dashboard/user-rental");
+        }, 1500);
+      } catch (error) {
+        console.error("locker rent failed:", error);
+        this.isLoading = false;
+        alert("failed to complete rental, please try again.");
+      }
+    },
   },
   mounted() {
     this.fetchLockers();

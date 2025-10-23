@@ -16,60 +16,19 @@
           <div
             v-for="locker in leftBatch"
             :key="locker.locker_id"
-            class="col-3 d-flex justify-content-center position-relative"
+            class="col-3 d-flex justify-content-center"
           >
-            <!-- Locker Card -->
             <div
-              class="card locker-card shadow-sm position-relative"
+              class="card locker-card shadow-sm"
               :class="{ selected: selectedLocker && selectedLocker.locker_id === locker.locker_id }"
-              @mouseenter="hoverLocker = locker"
-              @mouseleave="hoverLocker = null"
+              @click="openLocker(locker)"
             >
-              <div class="card-body text-center p-3" @click="openLocker(locker)">
+              <div class="card-body text-center p-3">
                 <div class="locker-icon-wrapper mb-2">
                   <img :src="lockerIcon" alt="Locker" class="locker-icon" />
                 </div>
                 <div class="locker-number">{{ locker.locker_number }}</div>
                 <div class="status-dot mt-1" :class="statusColor(locker.status)"></div>
-              </div>
-
-              <!-- Hover Popup -->
-              <div
-                v-if="hoverLocker && hoverLocker.locker_id === locker.locker_id"
-                class="locker-tooltip shadow-lg p-3 rounded"
-              >
-                <!-- RENTED -->
-                <template v-if="locker.status === 'rented'">
-                  <p>This {{ locker.locker_number }} locker has already been rented!</p>
-                  <button class="btn btn-primary btn-sm w-50 mx-auto d-block" @click.stop="hoverLocker = null">
-                    Okay
-                  </button>
-                </template>
-
-                <!-- RESERVED -->
-                <template v-else-if="locker.status === 'reserved'">
-                  <p>This {{ locker.locker_number }} locker is already reserved by someone!</p>
-                  <button class="btn btn-primary btn-sm w-50 mx-auto d-block" @click.stop="hoverLocker = null">
-                    Okay
-                  </button>
-                </template>
-
-                <!-- AVAILABLE -->
-                <template v-else-if="locker.status === 'available'">
-                  <p>This {{ locker.locker_number }} locker is currently available!</p>
-                  <p>Would you like to assign someone?</p>
-                  <div class="d-flex justify-content-center gap-2">
-                    <button class="btn btn-danger btn-sm" @click.stop="hoverLocker = null">
-                      No
-                    </button>
-                    <button
-                      class="btn btn-primary btn-sm"
-                      @click.stop="assignLocker(locker)"
-                    >
-                      Yes
-                    </button>
-                  </div>
-                </template>
               </div>
             </div>
           </div>
@@ -83,56 +42,19 @@
           <div
             v-for="locker in rightBatch"
             :key="locker.locker_id"
-            class="col-3 d-flex justify-content-center position-relative"
+            class="col-3 d-flex justify-content-center"
           >
             <div
-              class="card locker-card shadow-sm position-relative"
+              class="card locker-card shadow-sm"
               :class="{ selected: selectedLocker && selectedLocker.locker_id === locker.locker_id }"
-              @mouseenter="hoverLocker = locker"
-              @mouseleave="hoverLocker = null"
+              @click="openLocker(locker)"
             >
-              <div class="card-body text-center p-3" @click="openLocker(locker)">
+              <div class="card-body text-center p-3">
                 <div class="locker-icon-wrapper mb-2">
                   <img :src="lockerIcon" alt="Locker" class="locker-icon" />
                 </div>
                 <div class="locker-number">{{ locker.locker_number }}</div>
                 <div class="status-dot mt-1" :class="statusColor(locker.status)"></div>
-              </div>
-
-              <!-- Hover Popup -->
-              <div
-                v-if="hoverLocker && hoverLocker.locker_id === locker.locker_id"
-                class="locker-tooltip shadow-lg p-3 rounded"
-              >
-                <template v-if="locker.status === 'rented'">
-                  <p>This {{ locker.locker_number }} locker has already been rented!</p>
-                  <button class="btn btn-primary btn-sm w-50 mx-auto d-block" @click.stop="hoverLocker = null">
-                    Okay
-                  </button>
-                </template>
-
-                <template v-else-if="locker.status === 'reserved'">
-                  <p>This {{ locker.locker_number }} locker is already reserved by someone!</p>
-                  <button class="btn btn-primary btn-sm w-50 mx-auto d-block" @click.stop="hoverLocker = null">
-                    Okay
-                  </button>
-                </template>
-
-                <template v-else-if="locker.status === 'available'">
-                  <p>This {{ locker.locker_number }} locker is currently available!</p>
-                  <p>Would you like to assign someone?</p>
-                  <div class="d-flex justify-content-center gap-2">
-                    <button class="btn btn-danger btn-sm" @click.stop="hoverLocker = null">
-                      No
-                    </button>
-                    <button
-                      class="btn btn-primary btn-sm"
-                      @click.stop="assignLocker(locker)"
-                    >
-                      Yes
-                    </button>
-                  </div>
-                </template>
               </div>
             </div>
           </div>
@@ -143,6 +65,130 @@
     <!-- If no lockers -->
     <div v-else class="text-center text-muted py-5">
       <h5>No lockers found.</h5>
+    </div>
+
+    <!-- Locker Modal -->
+    <div
+      v-if="selectedLocker"
+      class="modal fade show"
+      style="display: block; background: rgba(0,0,0,0.5);"
+      tabindex="-1"
+      @click.self="selectedLocker = null"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">
+              Locker {{ selectedLocker.locker_number }}
+            </h5>
+            <button type="button" class="btn-close" @click="selectedLocker = null"></button>
+          </div>
+
+          <div class="modal-body">
+            <template v-if="selectedLocker.status === 'available'">
+              <div class="text-center mb-3">
+                <p class="fw-semibold">Choose what you want to do:</p>
+                <select v-model="form.action_type" class="form-select mb-3">
+                  <option disabled value="">select</option>
+                  <option value="rent">Rent</option>
+                  <option value="reserve">Reserve</option>
+                </select>
+
+                <!-- rent fields -->
+                <div v-if="form.action_type === 'rent'">
+                  <div class="mb-3">
+                    <label class="form-label">Number of Months:</label>
+                    <input
+                      v-model.number="form.months"
+                      type="number"
+                      class="form-control"
+                      min="1"
+                      required
+                    />
+                  </div>
+
+                  <div class="mb-3">
+                    <label class="form-label">Months Paid:</label>
+                    <input
+                      v-model.number="form.paid_months"
+                      type="number"
+                      class="form-control"
+                      min="0"
+                      :max="form.months"
+                      required
+                    />
+                  </div>
+
+                  <!-- auto calculation -->
+                  <div v-if="form.paid_months > 0" class="mt-3">
+                    <p class="fw-semibold text-primary mb-1">
+                      Amount to Pay: ₱{{ computedAmountPaid }}
+                    </p>
+                    <p class="text-secondary mb-1">
+                      Remaining Balance: ₱{{ computedBalance }}
+                    </p>
+                    <p class="text-muted">
+                      Due Date: {{ computedDueDate }}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- payment method -->
+                <div class="mb-3 mt-3">
+                  <label class="form-label">Payment Method:</label>
+                  <select v-model="form.payment_method" class="form-select" required>
+                    <option disabled value="">select</option>
+                    <option value="cash">Cash</option>
+                    <option value="qr">QR (GCash)</option>
+                  </select>
+                </div>
+
+                <!-- qr result -->
+                <div v-if="qrResult" class="text-center mt-3">
+                  <p class="fw-semibold text-success">Scan to Pay (₱{{ qrResult.amount_due }})</p>
+                  <img
+                    :src="`http://localhost:3001${qrResult.qr_download}`"
+                    class="img-fluid border p-2"
+                    style="max-width: 250px;"
+                  />
+
+                  <!-- ✅ download button -->
+                   <button
+  @click="downloadQrCode"
+  class="btn btn-outline-primary mt-3"
+>
+  <i class="bi bi-download me-2"></i> download qr code
+</button>
+                </div>
+
+                <!-- buttons -->
+                <div class="d-flex justify-content-center mt-4">
+                  <button class="btn btn-secondary me-2" @click="selectedLocker = null">
+                    Cancel
+                  </button>
+                  <button class="btn btn-primary" @click="submitLockerAction">
+                    Confirm
+                  </button>
+                </div>
+              </div>
+            </template>
+
+            <template v-else-if="selectedLocker.status === 'rented'">
+              <p class="text-center">This locker has already been rented!</p>
+              <div class="text-center">
+                <button class="btn btn-primary" @click="selectedLocker = null">Okay</button>
+              </div>
+            </template>
+
+            <template v-else-if="selectedLocker.status === 'reserved'">
+              <p class="text-center">This locker is already reserved by someone!</p>
+              <div class="text-center">
+                <button class="btn btn-primary" @click="selectedLocker = null">Okay</button>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Pagination -->
@@ -175,6 +221,17 @@
         Next ›
       </button>
     </div>
+    <!-- loading overlay -->
+<div
+  v-if="isLoading"
+  class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+  style="background: rgba(255,255,255,0.8); z-index: 9999;"
+>
+  <div class="text-center">
+    <div class="spinner-border text-primary mb-3" role="status"></div>
+    <p class="fw-semibold text-primary">processing payment, please wait...</p>
+  </div>
+</div>
   </div>
 </template>
 
@@ -188,10 +245,18 @@ export default {
     return {
       lockers: [],
       selectedLocker: null,
-      hoverLocker: null,
       currentPage: 1,
       lockerIcon,
       letters: ["A", "B", "C", "D"],
+      form: {
+        action_type: "",
+        months: 1,
+        paid_months: 0,
+        payment_method: "",
+      },
+      qrResult: null,
+      ratePerMonth: 60, // ₱60 per month
+      isLoading: false,
     };
   },
   computed: {
@@ -223,6 +288,24 @@ export default {
         l.locker_number?.startsWith(this.currentBatchLetters[1])
       );
     },
+    // 💡 auto calculations
+    computedAmountPaid() {
+      return this.form.paid_months * this.ratePerMonth;
+    },
+    computedBalance() {
+      const remaining = this.form.months - this.form.paid_months;
+      return remaining > 0 ? remaining * this.ratePerMonth : 0;
+    },
+    computedDueDate() {
+      if (!this.form.paid_months) return null;
+      const now = new Date();
+      now.setMonth(now.getMonth() + this.form.paid_months);
+      return now.toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+    },
   },
   methods: {
     async fetchLockers() {
@@ -250,28 +333,98 @@ export default {
       }
     },
     openLocker(locker) {
-      if (locker.status === "available") {
-        this.$router.push({
-          name: "LockerRentForm",
-          params: { id: locker.locker_id },
-          query: {
-            number: locker.locker_number,
-            status: locker.status,
-          },
-        });
+      this.selectedLocker = locker;
+      this.qrResult = null;
+      this.form = { action_type: "", months: 1, paid_months: 0, payment_method: "" };
+    },
+    async submitLockerAction() {
+    // if qr already generated → redirect on second confirm
+    if (this.qrResult && this.form.payment_method === "qr") {
+  this.isLoading = true; // show loading overlay first
+
+  // small async pause to let vue update before redirect
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  try {
+    // optional: confirm payment on backend first
+    await axios.post("http://localhost:3001/locker/payments", {
+      locker_id: this.selectedLocker?.locker_id || this.qrResult.locker_id,
+      payment_method: "qr",
+    }, { withCredentials: true });
+
+    // success message
+    alert("payment confirmed successfully! redirecting...");
+  } catch (error) {
+    console.error("payment confirmation failed:", error);
+    alert("failed to confirm payment, please try again.");
+  } finally {
+    setTimeout(() => {
+      this.isLoading = false;
+      this.selectedLocker = null;
+      this.$router.push("/dashboard/user-rental"); // ✅ redirect after short delay
+    }, 1500);
+  }
+
+  return;
+}
+    
+    if (!this.form.action_type || !this.form.payment_method) {
+      alert("please fill in all required fields");
+      return;
+    }
+
+    try {
+      const locker_id = this.selectedLocker.locker_id;
+      let url = "";
+      let payload = {};
+
+      if (this.form.action_type === "rent") {
+        url = "http://localhost:3001/locker/transaction";
+        payload = {
+          locker_id,
+          months: this.form.months,
+          paid_months: this.form.paid_months,
+          payment_method: this.form.payment_method,
+          action_type: "rent",
+        };
+      } else {
+        url = "http://localhost:3001/transaction";
+        payload = {
+          locker_id,
+          payment_method: this.form.payment_method,
+          action_type: "reserve",
+        };
       }
-    },
-    assignLocker(locker) {
-      this.hoverLocker = null;
-      this.$router.push({
-        name: "LockerRentForm",
-        params: { id: locker.locker_id },
-        query: {
-          number: locker.locker_number,
-          status: locker.status,
-        },
-      });
-    },
+
+      const response = await axios.post(url, payload, { withCredentials: true });
+
+      // if (response.data.qr_download) {
+      //   this.qrResult = response.data;
+      //   // alert("qr code generated! scan it and click confirm again to proceed.");
+      //   return;
+      // }
+      if (response.data.qr_download) {
+        const lockerId = this.selectedLocker.locker_id;
+        this.selectedLocker = null;
+        this.$router.push(`/qr-process/${lockerId}`);
+        return;
+      }
+
+      alert(response.data.message || "locker action successful!");
+      this.selectedLocker = null;
+      this.fetchLockers();
+
+      this.isLoading = true;
+      setTimeout(() => {
+        this.isLoading = false;
+        this.$router.push("/dashboard/user-rental");
+      }, 2000);
+    } catch (error) {
+      console.error("locker transaction failed:", error);
+      const msg = error.response?.data?.error || "something went wrong.";
+      alert(msg);
+    }
+  },
     nextPage() {
       if (this.currentPage < this.totalPages) this.currentPage++;
     },
@@ -281,6 +434,32 @@ export default {
     goToPage(page) {
       this.currentPage = page;
     },
+    async downloadQrCode() {
+      if (!this.qrResult?.qr_download) return;
+      const imageUrl = `http://localhost:3001${this.qrResult.qr_download}`;
+      const fileName = `locker_${this.selectedLocker.locker_number}_qr.png`;
+      
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        window.URL.revokeObjectURL(url);
+
+        // optional toast/alert
+        alert("qr code downloaded successfully!");
+      } catch (error) {
+        console.error("error downloading qr code:", error);
+        alert("failed to download qr code. please try again.");
+      }
+    }
   },
   mounted() {
     this.fetchLockers();
@@ -307,8 +486,6 @@ export default {
   transition: transform 0.2s ease;
   cursor: pointer;
   background: white;
-  position: relative;
-  z-index: 2;
 }
 .locker-card:hover {
   transform: translateY(-4px);
@@ -332,51 +509,6 @@ export default {
   border-radius: 50%;
   margin: 0 auto;
 }
-
-/* ✅ Hover Popup Styling Fix */
-.locker-tooltip {
-  position: absolute;
-  top: -110px; /* appear above locker */
-  left: 50%;
-  transform: translateX(-50%);
-  width: 250px;
-  background: white;
-  border-radius: 12px;
-  border: 1px solid #ddd;
-  padding: 12px;
-  text-align: center;
-  animation: fadeIn 0.2s ease-in-out;
-  z-index: 999999 !important;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
-}
-
-/* Ensure nothing hides it */
-.row,
-.container-fluid,
-.container {
-  overflow: visible !important;
-  position: static !important;
-  z-index: auto !important;
-  transform: none !important;
-}
-
-.locker-tooltip p {
-  margin: 0 0 8px 0;
-  font-weight: 500;
-  font-size: 14px;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .pagination-footer {
   position: relative;
   bottom: -150px;
@@ -404,5 +536,35 @@ export default {
   background-color: #007bff;
   color: white;
   box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+}
+/* ===== Mobile Adjustments (<=768px) ===== */
+@media (max-width: 768px) {
+  .stats {
+    justify-content: flex-start;
+    gap: 1.2rem;
+  }
+
+  .locker-card {
+    max-width: 90px;
+  }
+
+  .locker-icon {
+    width: 34px;
+  }
+
+  .locker-number {
+    font-size: 12px;
+  }
+
+  .page-circle {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+    line-height: 30px;
+  }
+
+  .modal-content {
+    border-radius: 0.5rem;
+  }
 }
 </style>
