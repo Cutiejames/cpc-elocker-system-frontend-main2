@@ -5,6 +5,7 @@
       <div><span class="dot bg-danger"></span> RENTED</div>
       <div><span class="dot bg-warning"></span> RESERVED</div>
       <div><span class="dot bg-success"></span> AVAILABLE</div>
+      <div><span class="dot bg-secondary"></span> PENDING</div>
     </div>
 
     <!-- Locker Batches -->
@@ -77,11 +78,11 @@
     >
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-          <div class="modal-header">
+          <div class="modal-header" :class="modalHeaderClass">
             <h5 class="modal-title">
-              Locker {{ selectedLocker.locker_number }}
+              Rent Locker {{ selectedLocker.locker_number }}
             </h5>
-            <button type="button" class="btn-close" @click="selectedLocker = null"></button>
+            <button type="button" class="btn-close btn-close-white" @click="selectedLocker = null"></button>
           </div>
 
           <div class="modal-body">
@@ -96,51 +97,55 @@
 
                 <!-- rent fields -->
                 <div v-if="form.action_type === 'rent'">
-                  <div class="mb-3">
+                  <!-- payment method -->
+                  <div class="mb-3 mt-3">
+                    <label class="form-label">Payment Method:</label>
+                    <select v-model="form.payment_method" class="form-select" required>
+                      <option disabled value="">select</option>
+                      <option value="cash">Cash</option>
+                      <option value="qr">QR (GCash)</option>
+                    </select>
+                  </div>
+
+                  <div class="mb-3" v-if="form.payment_method === 'qr' || form.payment_method === 'cash'">
                     <label class="form-label">Number of Months:</label>
                     <input
                       v-model.number="form.months"
-                      type="number"
+                      type="number" 
                       class="form-control"
                       min="1"
+                      max="12"
+                      @input="validatePaidMonths"
                       required
                     />
                   </div>
 
-                  <div class="mb-3">
+                  <!-- months paid field (only for QR) -->
+                  <div v-if="form.payment_method === 'qr'" class="mb-3">
                     <label class="form-label">Months Paid:</label>
                     <input
                       v-model.number="form.paid_months"
                       type="number"
                       class="form-control"
+                      :class="{ 'is-invalid': isPaidMonthsInvalid }"
                       min="0"
                       :max="form.months"
+                      @input="validatePaidMonths"
                       required
                     />
+                    
+                    <!-- ✅ Error message -->
+                    <div v-if="isPaidMonthsInvalid" class="invalid-feedback d-block">
+                      {{ paidMonthsErrorMessage }}
+                    </div>
                   </div>
 
-                  <!-- auto calculation -->
-                  <div v-if="form.paid_months > 0" class="mt-3">
-                    <p class="fw-semibold text-primary mb-1">
-                      Amount to Pay: ₱{{ computedAmountPaid }}
-                    </p>
-                    <p class="text-secondary mb-1">
-                      Remaining Balance: ₱{{ computedBalance }}
-                    </p>
-                    <p class="text-muted">
-                      Due Date: {{ computedDueDate }}
-                    </p>
+                  <!-- auto calculation (only for QR) -->
+                  <div v-if="form.payment_method === 'qr' && form.paid_months > 0 && !isPaidMonthsInvalid" class="mt-3">
+                    <p class="fw-semibold text-primary mb-1">Amount to Pay: ₱{{ computedAmountPaid }}</p>
+                    <p class="text-secondary mb-1">Remaining Balance: ₱{{ computedBalance }}</p>
+                    <p class="text-muted">Due Date: {{ computedDueDate }}</p>
                   </div>
-                </div>
-
-                <!-- payment method -->
-                <div class="mb-3 mt-3" v-if="form.action_type === 'rent'">
-                  <label class="form-label">Payment Method:</label>
-                  <select v-model="form.payment_method" class="form-select" required>
-                    <option disabled value="">select</option>
-                    <option value="cash">Cash</option>
-                    <option value="qr">QR (GCash)</option>
-                  </select>
                 </div>
 
                 <!-- qr result -->
@@ -153,12 +158,12 @@
                   />
 
                   <!-- ✅ download button -->
-                   <button
-  @click="downloadQrCode"
-  class="btn btn-outline-primary mt-3"
->
-  <i class="bi bi-download me-2"></i> download qr code
-</button>
+                  <button
+                    @click="downloadQrCode"
+                    class="btn btn-outline-primary mt-3"
+                  >
+                    <i class="bi bi-download me-2"></i> download qr code
+                  </button>
                 </div>
 
                 <!-- buttons -->
@@ -166,22 +171,25 @@
                   <button class="btn btn-secondary me-2" @click="selectedLocker = null">
                     Cancel
                   </button>
-                  <button class="btn btn-primary" @click="submitLockerAction">
+                  <button 
+                    class="btn btn-primary" 
+                    @click="submitLockerAction"
+                    :disabled="!isFormValid"
+                  >
                     Confirm
                   </button>
                 </div>
               </div>
             </template>
 
-            <template v-else-if="selectedLocker.status === 'rented'">
-              <p class="text-center">This locker has already been rented!</p>
-              <div class="text-center">
-                <button class="btn btn-primary" @click="selectedLocker = null">Okay</button>
-              </div>
-            </template>
-
-            <template v-else-if="selectedLocker.status === 'reserved'">
-              <p class="text-center">This locker is already reserved by someone!</p>
+            <template v-else-if="['rented', 'reserved', 'pending'].includes(selectedLocker.status)">
+              <p class="text-center fw-semibold fs-5" :class="{ 
+                'text-danger': selectedLocker.status === 'rented',
+                'text-warning': selectedLocker.status === 'reserved',
+                'text-secondary': selectedLocker.status === 'pending'
+              }">
+                This locker is currently {{ selectedLocker.status.toUpperCase() }}
+              </p>
               <div class="text-center">
                 <button class="btn btn-primary" @click="selectedLocker = null">Okay</button>
               </div>
@@ -192,31 +200,49 @@
     </div>
 
     <!-- confirmation modal -->
+    <div
+      v-if="showConfirmModal"
+      class="modal fade show"
+      style="display: block; background: rgba(0,0,0,0.5);"
+      tabindex="-1"
+      @click.self="showConfirmModal = false"
+    >
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-center pb-4 br-4">
+          <div class="head bg-success p-3"><h5 class="text-light fw-bold">Confirm Rental</h5></div>
+          <p class="text-muted mb-4 mt-2">
+            Are you sure you want to rent locker
+            <strong>{{ selectedLocker?.locker_number }}</strong> for
+            <strong>{{ form.months }}</strong>
+            month<span v-if="form.months > 1">s</span>
+            via <strong>{{ form.payment_method.toUpperCase() }}</strong>?
+          </p>
+          <div class="d-flex justify-content-center">
+            <button class="btn btn-secondary me-3" @click="showConfirmModal = false">
+              Cancel
+            </button>
+            <button class="btn btn-primary" @click="confirmCashRent">
+              Proceed
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+<!-- LIMIT WARNING MODAL -->
 <div
-  v-if="showConfirmModal"
+  v-if="showLimitModal"
   class="modal fade show"
-  style="display: block; background: rgba(0,0,0,0.5);"
+  style="display: block; background: rgba(0,0,0,0.3);"
   tabindex="-1"
-  @click.self="showConfirmModal = false"
 >
   <div class="modal-dialog modal-dialog-centered">
-    <div class="modal-content text-center p-4">
-      <h5 class="text-primary fw-bold mb-3">confirm rental</h5>
-      <p class="text-muted mb-4">
-        are you sure you want to rent locker
-        <strong>{{ selectedLocker?.locker_number }}</strong> for
-        <strong>{{ form.months }}</strong>
-        month<span v-if="form.months > 1">s</span>
-        via <strong>{{ form.payment_method.toUpperCase() }}</strong>?
-      </p>
-      <div class="d-flex justify-content-center">
-        <button class="btn btn-secondary me-3" @click="showConfirmModal = false">
-          cancel
-        </button>
-        <button class="btn btn-primary" @click="confirmCashRent">
-          yes, proceed
-        </button>
-      </div>
+    <div class="modal-content text-center pb-4 br-4">
+      <div class="head bg-primary p-3"><h5 class="text-light fw-bold mb-3">Limit Reached</h5></div>
+      <strong><p class="text-muted mt-2">{{ limitMessage }}</p></strong>
+      <div style="text-align: center;">   
+        <button class="btn btn-primary me-3" @click="closeLimitModal">
+        OK
+      </button></div>
     </div>
   </div>
 </div>
@@ -251,17 +277,18 @@
         Next ›
       </button>
     </div>
+
     <!-- loading overlay -->
-<div
-  v-if="isLoading"
-  class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
-  style="background: rgba(255,255,255,0.8); z-index: 9999;"
->
-  <div class="text-center">
-    <div class="spinner-border text-primary mb-3" role="status"></div>
-    <p class="fw-semibold text-primary">processing payment, please wait...</p>
-  </div>
-</div>
+    <div
+      v-if="isLoading"
+      class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
+      style="background: rgba(255,255,255,0.8); z-index: 9999;"
+    >
+      <div class="text-center">
+        <div class="spinner-border text-primary mb-3" role="status"></div>
+        <p class="fw-semibold text-primary">processing payment, please wait...</p>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -278,7 +305,10 @@ export default {
       showConfirmModal: false,
       currentPage: 1,
       lockerIcon,
-      letters: ["A", "B", "C", "D"],
+      letters: [],
+      lockerBackup: null,
+      showLimitModal: false,
+limitMessage: "",
       form: {
         action_type: "",
         months: 1,
@@ -286,7 +316,7 @@ export default {
         payment_method: "",
       },
       qrResult: null,
-      ratePerMonth: 60, // ₱60 per month
+      ratePerMonth: 60,
       isLoading: false,
     };
   },
@@ -309,17 +339,36 @@ export default {
         return letterA.localeCompare(letterB);
       });
     },
-    leftBatch() {
-      return this.sortedLockers.filter((l) =>
-        l.locker_number?.startsWith(this.currentBatchLetters[0])
-      );
+    modalHeaderClass() {
+      if (!this.selectedLocker) return 'bg-primary'; 
+      const status = this.selectedLocker.status;
+      switch (status) {
+        case "rented": return "bg-danger";
+        case "reserved": return "bg-warning";
+        case "available": return "bg-success";
+        case "pending": return "bg-secondary";
+        default: return "bg-primary";
+      }
     },
-    rightBatch() {
-      return this.sortedLockers.filter((l) =>
-        l.locker_number?.startsWith(this.currentBatchLetters[1])
-      );
-    },
-    // 💡 auto calculations
+// ... (inside computed)
+
+leftBatch() {
+    // Filters for the first letter in the current page's batch
+    const firstLetter = this.currentBatchLetters[0];
+    if (!firstLetter) return []; // Guard against undefined
+    return this.sortedLockers.filter((l) =>
+        l.locker_number?.startsWith(firstLetter)
+    );
+},
+rightBatch() {
+    // Filters for the second letter in the current page's batch
+    const secondLetter = this.currentBatchLetters[1];
+    if (!secondLetter) return []; // Guard against undefined (e.g., on the last page)
+    return this.sortedLockers.filter((l) =>
+        l.locker_number?.startsWith(secondLetter)
+    );
+},
+// ...
     computedAmountPaid() {
       return this.form.paid_months * this.ratePerMonth;
     },
@@ -337,30 +386,93 @@ export default {
         day: "numeric",
       });
     },
+    // ✅ Validation computed properties
+    isPaidMonthsInvalid() {
+      if (this.form.payment_method !== 'qr') return false;
+      return this.form.paid_months > this.form.months || this.form.paid_months < 0;
+    },
+    paidMonthsErrorMessage() {
+      if (this.form.paid_months > this.form.months) {
+        return `You cannot pay for more months (${this.form.paid_months}) than you're renting (${this.form.months})`;
+      }
+      if (this.form.paid_months < 0) {
+        return 'Paid months cannot be negative';
+      }
+      return '';
+    },
+    isFormValid() {
+      // Basic validation
+      if (!this.form.action_type) return false;
+      
+      if (this.form.action_type === 'rent') {
+        if (!this.form.payment_method) return false;
+        if (this.form.months < 1) return false;
+        
+        // QR-specific validation
+        if (this.form.payment_method === 'qr') {
+          if (this.isPaidMonthsInvalid) return false;
+          if (this.form.paid_months === 0) return false;
+        }
+      }
+      
+      return true;
+    }
+  },
+  watch: {
+    "form.payment_method"(newValue) {
+      if (newValue === "cash") {
+        this.form.paid_months = 0;
+      }
+    },
+    // ✅ Auto-adjust paid_months when months changes
+    "form.months"(newVal) {
+      if (this.form.paid_months > newVal) {
+        this.form.paid_months = newVal;
+      }
+    }
   },
   methods: {
-    async fetchLockers() {
-      try {
+// ... (inside methods)
+async fetchLockers() {
+    try {
         const response = await axios.get("http://localhost:3001/locker/lockers");
         const data = response.data;
         this.lockers = Array.isArray(data)
-          ? data
-          : data.lockers || data.data || data.result || [];
-      } catch (error) {
+            ? data
+            : data.lockers || data.data || data.result || [];
+        
+        // **✅ NEW CODE: Generate unique, sorted list of starting letters**
+        const uniqueLetters = new Set();
+        this.lockers.forEach(locker => {
+            if (locker.locker_number) {
+                // Extracts the first character, converts to uppercase
+                uniqueLetters.add(locker.locker_number.charAt(0).toUpperCase());
+            }
+        });
+        
+        // Convert Set to Array and sort alphabetically
+        this.letters = Array.from(uniqueLetters).sort(); 
+        
+        // Reset current page to 1 if the number of pages changes drastically
+        if (this.currentPage > this.totalPages) {
+            this.currentPage = 1;
+        }
+        // **END NEW CODE**
+        
+    } catch (error) {
         console.error("Error fetching lockers:", error);
         this.lockers = [];
-      }
-    },
+        this.letters = []; // Reset letters on error
+    }
+},
+// ...
     statusColor(status) {
       switch (status) {
-        case "rented":
-          return "bg-danger";
-        case "reserved":
-          return "bg-warning";
-        case "available":
-          return "bg-success";
-        default:
-          return "bg-secondary";
+        case "rented": return "bg-danger";
+        case "reserved": return "bg-warning";
+        case "pending": return "bg-secondary";
+        case "available": return "bg-success";
+        default: return "bg-secondary";
       }
     },
     openLocker(locker) {
@@ -368,124 +480,158 @@ export default {
       this.qrResult = null;
       this.form = { action_type: "", months: 1, paid_months: 0, payment_method: "" };
     },
+    cancelConfirm() {
+  this.showConfirmModal = false;
+  this.selectedLocker = this.lockerBackup;  // ✅ restore first modal
+  this.lockerBackup = null;
+},
+closeLimitModal() {
+  this.showLimitModal = false;
+  this.limitMessage = "";
+},
+
+
+    // ✅ Validate paid months
+    validatePaidMonths() {
+      if (this.form.paid_months > this.form.months) {
+        this.$nextTick(() => {
+          this.form.paid_months = this.form.months;
+        });
+      }
+      if (this.form.paid_months < 0) {
+        this.form.paid_months = 0;
+      }
+    },
     async submitLockerAction() {
-      // check if rent + cash → show confirmation modal instead of alert
+      // ✅ Frontend validation before submitting
+      if (this.form.action_type === 'rent' && this.form.payment_method === 'qr') {
+        if (this.form.paid_months > this.form.months) {
+         this.limitMessage = `You cannot pay for more months (${this.form.paid_months}) than you're renting (${this.form.months})`;
+this.showLimitModal = true;
+return;
+
+        }
+        if (this.form.paid_months === 0) {
+          this.limitMessage = "Please enter how many months you want to pay now.";
+this.showLimitModal = true;
+return;
+
+        }
+      }
+
+      // check if rent + cash → show confirmation modal
       if (
         this.form.action_type === "rent" &&
         this.form.payment_method === "cash" &&
         !this.qrResult
       ) {
+        this.lockerBackup = this.selectedLocker; // ✅ save
+this.selectedLocker = null;  
         this.showConfirmModal = true;
         return;
       }
 
       // if qr already generated → redirect on second confirm
       if (this.qrResult && this.form.payment_method === "qr") {
-        this.isLoading = true; // show loading overlay first
-
-        // small async pause to let vue update before redirect
+        this.isLoading = true;
         await new Promise(resolve => setTimeout(resolve, 500));
       
         try {
-          // optional: confirm payment on backend first
           await axios.post("http://localhost:3001/locker/payments", {
             locker_id: this.selectedLocker?.locker_id || this.qrResult.locker_id,
             payment_method: "qr",
           }, { withCredentials: true });
 
-          // success message
-          alert("payment confirmed successfully! redirecting...");
+          this.limitMessage ="payment confirmed successfully! redirecting...";
+          this.showLimitModal = true;
         } catch (error) {
           console.error("payment confirmation failed:", error);
-          alert("failed to confirm payment, please try again.");
+          this.limitMessage = "failed to confirm payment, please try again.";
+          this.showLimitModal = true;
         } finally {
           setTimeout(() => {
             this.isLoading = false;
             this.selectedLocker = null;
-            this.$router.push("/dashboard/user-rental"); // ✅ redirect after short delay
-            }, 1500);
-          }
-          return;
+            this.$router.push("/dashboard/user-rental");
+          }, 1500);
         }
-        
-        if (!this.form.action_type) {
-          alert("please choose an action (rent or reserve)");
-          return;
-        }
-
-        // auto-set payment method for reserve
-        if (this.form.action_type === "reserve") {
-          this.form.payment_method = "cash";
-        }
-
-    try {
-      const locker_id = this.selectedLocker.locker_id;
-      let url = "";
-      let payload = {};
-
-      if (this.form.action_type === "rent") {
-        url = "http://localhost:3001/locker/transaction";
-        payload = {
-          locker_id,
-          months: this.form.months,
-          paid_months: this.form.paid_months,
-          payment_method: this.form.payment_method,
-          action_type: "rent",
-        };
-      } else {
-        url = "http://localhost:3001/locker/transaction";
-        payload = {
-          locker_id,
-          payment_method: this.form.payment_method,
-          action_type: "reserve",
-        };
-      }
-
-      const response = await axios.post(url, payload, { withCredentials: true });
-
-
-      // if (response.data.qr_download) {
-      //   this.qrResult = response.data;
-      //   // alert("qr code generated! scan it and click confirm again to proceed.");
-      //   return;
-      // }
-      if (response.data.qr_download) {
-        this.isLoading = true;
-        const lockerId = this.selectedLocker.locker_id;
-
-        // small delay for smoother UI feedback
-        setTimeout(() => {
-          this.selectedLocker = null;
-          this.isLoading = false;
-
-          // ✅ navigate to qr process page with query + qrData
-          this.$router.push({
-            path: `/qr-process/${lockerId}`,
-            query: {
-              months: this.form.months,
-              paid: this.form.paid_months,
-            },
-            state: { qrData: response.data },
-          });
-        }, 1200);
         return;
       }
+        
+      if (!this.form.action_type) {
+        this.limitMessage = "Please choose an action (Rent or Reserve).";
+this.showLimitModal = true;
+return;
 
-      alert(response.data.message || "locker action successful!");
-      this.selectedLocker = null;
-      this.fetchLockers();
+      }
 
-      this.isLoading = true;
-      setTimeout(() => {
-        this.isLoading = false;
-        this.$router.push("/dashboard/user-rental");
-      }, 2000);
-    } catch (error) {
-      console.error("locker transaction failed:", error);
-      const msg = error.response?.data?.error || "something went wrong.";
-      alert(msg);
-    }
-  },
+      // auto-set payment method for reserve
+      if (this.form.action_type === "reserve") {
+        this.form.payment_method = "cash";
+      }
+
+      try {
+        const locker_id = this.selectedLocker.locker_id;
+        let url = "http://localhost:3001/locker/transaction";
+        let payload = {};
+
+        if (this.form.action_type === "rent") {
+          payload = {
+            locker_id,
+            months: this.form.months,
+            paid_months: this.form.paid_months,
+            paid_amount: this.computedAmountPaid,
+            balance: this.computedBalance,
+            payment_method: this.form.payment_method,
+            action_type: "rent",
+          };
+        } else {
+          payload = {
+            locker_id,
+            payment_method: this.form.payment_method,
+            action_type: "reserve",
+          };
+        }
+
+        const response = await axios.post(url, payload, { withCredentials: true });
+
+        if (response.data.qr_download) {
+          this.isLoading = true;
+          const lockerId = this.selectedLocker.locker_id;
+
+          setTimeout(() => {
+            this.selectedLocker = null;
+            this.isLoading = false;
+
+            this.$router.push({
+              path: `/qr-process/${lockerId}`,
+              query: {
+                months: this.form.months,
+                paid: this.form.paid_months,
+              },
+              state: { qrData: response.data },
+            });
+          }, 1200);
+          return;
+        }
+
+        alert(response.data.message || "locker action successful!");
+        this.selectedLocker = null;
+        this.fetchLockers();
+
+        this.isLoading = true;
+        setTimeout(() => {
+          this.isLoading = false;
+          this.$router.push("/dashboard/user-rental");
+        }, 2000);
+      } catch (error) {
+        console.error("locker transaction failed:", error);
+        const msg = error.response?.data?.error || "something went wrong.";
+        this.limitMessage = msg;
+this.showLimitModal = true;
+
+      }
+    },
     nextPage() {
       if (this.currentPage < this.totalPages) this.currentPage++;
     },
@@ -514,7 +660,6 @@ export default {
 
         window.URL.revokeObjectURL(url);
 
-        // optional toast/alert
         alert("qr code downloaded successfully!");
       } catch (error) {
         console.error("error downloading qr code:", error);
@@ -531,6 +676,8 @@ export default {
           locker_id,
           months: this.form.months,
           paid_months: this.form.paid_months,
+          paid_amount: this.computedAmountPaid,
+          balance: this.computedBalance,
           payment_method: this.form.payment_method,
           action_type: "rent",
         };
@@ -541,8 +688,8 @@ export default {
           { withCredentials: true }
         );
 
-        const message = response.data.message || "rental successful!";
-        console.log(message);
+        this.limitMessage = response.data.message || "rental successful!";
+        this.showLimitModal = true;
 
         setTimeout(() => {
           this.isLoading = false;
@@ -552,7 +699,8 @@ export default {
       } catch (error) {
         console.error("locker rent failed:", error);
         this.isLoading = false;
-        alert("failed to complete rental, please try again.");
+        this.limitMessage = "failed to complete rental, please try again.";
+        this.showLimitModal = true;
       }
     },
   },
@@ -572,6 +720,9 @@ export default {
   height: 12px;
   border-radius: 50%;
   margin-right: 4px;
+}
+.modal-header{
+  color: rgb(238, 238, 238);
 }
 .locker-card {
   width: 90px;
@@ -614,6 +765,7 @@ export default {
   align-items: center;
   gap: 15px;
 }
+
 .page-circle {
   width: 38px;
   height: 38px;
@@ -632,4 +784,8 @@ export default {
   color: white;
   box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
 }
+.modal-content {
+  border-radius: 12px;
+}
+
 </style>
