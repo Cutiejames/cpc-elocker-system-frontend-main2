@@ -1,4 +1,5 @@
-<template><div class="container my-5 pb-5">
+<template>
+<div class="container my-5 pb-5">
     <div class="stats d-flex justify-content-start gap-4 mb-4"><div><span class="dot bg-danger"></span> RENTED</div><div><span class="dot bg-warning"></span> RESERVED</div><div><span class="dot bg-success"></span> AVAILABLE</div><div><span class="dot bg-secondary"></span> PENDING</div></div>
     <div v-if="sortedLockers.length" class="row justify-content-center mb-5">
       <div class="col-md-6 text-center"><h5 class="fw-bold mb-3">{{ currentBatchLetters[0] }}</h5><div class="row g-3 justify-content-center"><div
@@ -85,7 +86,7 @@
   class="modal fade show"
   style="display: block; background: rgba(0,0,0,0.3);"
   tabindex="-1"
-><div class="modal-dialog modal-dialog-centered"><div class="modal-content text-center pb-4 br-4"><div class="head bg-primary p-3"><h5 class="text-light fw-bold mb-3">Limit Reached</h5></div><strong><p class="text-muted mt-2">{{ limitMessage }}</p></strong><div style="text-align: center;"><button class="btn btn-primary me-3" @click="closeLimitModal">OK</button></div></div></div></div>
+><div class="modal-dialog modal-dialog-centered"><div class="modal-content text-center pb-4 br-4"><div class="head p-3" :class="modalHeaderClassForLimit"><h5 class="text-light fw-bold mb-3">Information</h5></div><strong><p class="text-muted mt-2">{{ limitMessage }}</p></strong><div style="text-align: center;"><button class="btn btn-primary me-3" @click="closeLimitModal">OK</button></div></div></div></div>
     <div v-if="sortedLockers.length" class="pagination-footer"><button
         class="btn btn-outline-primary rounded-pill px-4 fw-semibold pagination-btn"
         @click="prevPage"
@@ -101,11 +102,8 @@
         @click="nextPage"
         :disabled="currentPage === totalPages"
       >Next ›</button></div>
-    <div
-      v-if="isLoading"
-      class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center"
-      style="background: rgba(255,255,255,0.8); z-index: 9999;"
-    ><div class="text-center"><div class="spinner-border text-primary mb-3" role="status"></div><p class="fw-semibold text-primary">processing payment, please wait...</p></div></div></div></template>
+</div>
+</template>
 
 <script>
 import axios from "axios";
@@ -125,6 +123,7 @@ export default {
       lockerBackup: null,
       showLimitModal: false,
       limitMessage: "",
+      modalHeaderClassForLimit: "bg-primary", 
       form: {
         action_type: "",
         months: 1,
@@ -133,7 +132,7 @@ export default {
       },
       qrResult: null,
       ratePerMonth: 60,
-      isLoading: false,
+      shouldRedirectOnClose: false, // New flag to control redirection on modal close
     };
   },
   computed: {
@@ -276,6 +275,7 @@ export default {
       this.selectedLocker = locker;
       this.qrResult = null;
       this.form = { action_type: "", months: 1, paid_months: 0, payment_method: "" };
+      this.shouldRedirectOnClose = false; // Reset flag
     },
     cancelConfirm() {
       this.showConfirmModal = false;
@@ -283,8 +283,18 @@ export default {
       this.lockerBackup = null;
     },
     closeLimitModal() {
+      // Check if the modal was closed after a successful transaction
+      if (this.shouldRedirectOnClose) {
+        this.shouldRedirectOnClose = false; // Reset flag
+        this.showLimitModal = false;
+        this.limitMessage = "";
+        this.modalHeaderClassForLimit = "bg-primary";
+        this.$router.push("/dashboard/user-rental"); // Redirect on button click
+        return; 
+      }
       this.showLimitModal = false;
       this.limitMessage = "";
+      this.modalHeaderClassForLimit = "bg-primary"; 
     },
     validatePaidMonths() {
       if (this.form.paid_months > this.form.months) this.form.paid_months = this.form.months;
@@ -299,12 +309,14 @@ export default {
         if (this.form.paid_months > this.form.months) {
           this.limitMessage = `You cannot pay for more months (${this.form.paid_months}) than you're renting (${this.form.months})`;
           this.selectedLocker = null;
+          this.modalHeaderClassForLimit = 'bg-danger'; 
           this.showLimitModal = true;
           return;
         }
         if (this.form.paid_months === 0) {
           this.limitMessage = "Please enter how many months you want to pay now.";
           this.selectedLocker = null;
+          this.modalHeaderClassForLimit = 'bg-danger'; 
           this.showLimitModal = true;
           return;
         }
@@ -318,29 +330,24 @@ export default {
         return;
       }
 
-      // QR payment processing
+      // QR payment processing (Confirmation after scanning)
       if (this.qrResult && this.form.payment_method === "qr") {
-        this.isLoading = true;
-        await new Promise(resolve => setTimeout(resolve, 500));
         try {
           await axios.post(`${API_BASE_URL}/locker/payments`, {
             locker_id: this.selectedLocker?.locker_id || this.qrResult.locker_id,
             payment_method: "qr",
           }, { withCredentials: true });
-          this.limitMessage ="Payment confirmed successfully! Redirecting...";
+          this.modalHeaderClassForLimit = 'bg-success'; 
+          this.limitMessage ="Payment confirmed successfully!"; // Removed automatic redirect message
           this.selectedLocker = null;
           this.showLimitModal = true;
+          this.shouldRedirectOnClose = true; // Set flag for redirection
         } catch (error) {
           console.error("Payment confirmation failed:", error);
+          this.modalHeaderClassForLimit = 'bg-danger'; 
           this.limitMessage = "Failed to confirm payment, please try again.";
           this.selectedLocker = null;
           this.showLimitModal = true;
-        } finally {
-          setTimeout(() => {
-            this.isLoading = false;
-            this.selectedLocker = null;
-            this.$router.push("/dashboard/user-rental");
-          }, 1500);
         }
         return;
       }
@@ -348,7 +355,7 @@ export default {
       // Reserve action defaults to cash
       if (this.form.action_type === "reserve") this.form.payment_method = "cash";
 
-      // Regular transaction
+      // Regular transaction (Rent (non-QR) or Reserve)
       try {
         const locker_id = this.selectedLocker.locker_id;
         let url = `${API_BASE_URL}/locker/transaction`;
@@ -374,35 +381,37 @@ export default {
 
         const response = await axios.post(url, payload, { withCredentials: true });
 
+        // QR creation success (if action_type is rent and payment is qr)
         if (response.data.qr_download) {
-          this.isLoading = true;
           const lockerId = this.selectedLocker.locker_id;
           setTimeout(() => {
             this.selectedLocker = null;
-            this.isLoading = false;
             this.$router.push({
               path: `/qr-process/${lockerId}`,
               query: { months: this.form.months, paid: this.form.paid_months },
               state: { qrData: response.data },
             });
-          }, 1200);
+          }, 500); 
           return;
         }
 
-        alert(response.data.message || "Locker action successful!");
-        this.selectedLocker = null;
+        // Non-QR transaction success (including 'reserve')
+        this.modalHeaderClassForLimit = 'bg-success';
+        this.limitMessage = response.data.message || `Locker ${this.selectedLocker.locker_number} successfully ${this.form.action_type === 'reserve' ? 'reserved' : 'rented'}!`;
+        this.selectedLocker = null; 
+        this.showLimitModal = true;
+        this.shouldRedirectOnClose = true; // Set flag for redirection
+        
         this.fetchLockers();
-        this.isLoading = true;
-        setTimeout(() => {
-          this.isLoading = false;
-          this.$router.push("/dashboard/user-rental");
-        }, 2000);
+
+        // Removed: Automatic redirection setTimeout
 
       } catch (error) {
         console.error("Locker transaction failed:", error);
         const msg = error.response?.data?.error || "Something went wrong.";
         this.selectedLocker = null;
         this.limitMessage = msg;
+        this.modalHeaderClassForLimit = 'bg-danger'; 
         this.showLimitModal = true;
       }
     },
@@ -425,15 +434,20 @@ export default {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-        alert("QR code downloaded successfully!");
+        
+        this.modalHeaderClassForLimit = 'bg-success';
+        this.limitMessage = "QR code downloaded successfully!";
+        this.showLimitModal = true;
       } catch (error) {
         console.error("Error downloading QR code:", error);
-        alert("Failed to download QR code. Please try again.");
+        
+        this.modalHeaderClassForLimit = 'bg-danger';
+        this.limitMessage = "Failed to download QR code. Please try again.";
+        this.showLimitModal = true;
       }
     },
     async confirmCashRent() {
       this.showConfirmModal = false;
-      this.isLoading = true;
       try {
         const locker_id = this.selectedLocker.locker_id;
         const payload = {
@@ -446,16 +460,16 @@ export default {
           action_type: "rent",
         };
         const response = await axios.post(`${API_BASE_URL}/locker/transaction`, payload, { withCredentials: true });
+        
+        this.modalHeaderClassForLimit = 'bg-success'; 
         this.limitMessage = response.data.message || "Rental successful!";
         this.showLimitModal = true;
-        setTimeout(() => {
-          this.isLoading = false;
-          this.selectedLocker = null;
-          this.$router.push("/dashboard/user-rental");
-        }, 1500);
+        this.shouldRedirectOnClose = true; // Set flag for redirection
+        
+        // Removed: Automatic redirection setTimeout
       } catch (error) {
         console.error("Locker rent failed:", error);
-        this.isLoading = false;
+        this.modalHeaderClassForLimit = 'bg-danger'; 
         this.limitMessage = "Failed to complete rental, please try again.";
         this.showLimitModal = true;
       }
