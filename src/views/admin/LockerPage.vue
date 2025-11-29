@@ -69,7 +69,7 @@ style="display: block; background: rgba(0,0,0,0.5);"
 tabindex="-1"
 @click.self="showWarningModal = false"
 >
-<div class="modal-dialog modal-dialog-centered modal-sm">
+<div class="modal-dialog modal-dialog-centered modal-md">
 <div class="modal-content">
 <div class="modal-header bg-primary text-white">
 <h5 class="modal-title fw-bold">Action Required</h5>
@@ -90,11 +90,11 @@ Got It
 <div
 v-if="showSuccessModal || showTransactionSuccessModal"
 class="modal fade show"
-style="display: block; background: rgba(0,0,0,0.5);"
+style="display: block; background: rgba(0,0,0,0.2);"
 tabindex="-1"
 @click.self="closeSuccessModal"
 >
-<div class="modal-dialog modal-dialog-centered modal-sm">
+<div class="modal-dialog modal-dialog-centered modal-md" style="border-radius: 10px;">
 <div class="modal-content">
 <div class="modal-header bg-success text-white">
 <h5 class="modal-title fw-bold">Success!</h5>
@@ -103,7 +103,7 @@ tabindex="-1"
 <div class="modal-body text-center">
 <i class="bi bi-check-circle-fill text-success" style="font-size: 3rem;"></i>
 <p v-if="showSuccessModal" class="mt-3 mb-0">
-Locker **{{ newLockerNumberSuccess }}** added successfully!
+Locker {{ newLockerNumberSuccess }} added successfully!
 </p>
 <p v-else-if="showTransactionSuccessModal" class="mt-3 mb-0">
 {{ transactionMessage }}
